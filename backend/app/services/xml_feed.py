@@ -19,9 +19,10 @@ class FetchResult:
     status_code: int | None
     records: list[ParsedRecord] = field(default_factory=list)
     error: str | None = None
-    error_kind: str | None = None  
+    error_kind: str | None = None
     elapsed_ms: int = 0
     bozo: bool = False
+    retry_after_seconds: int | None = None
 
 
 async def fetch_and_parse(url: str, timeout: float = 30.0) -> FetchResult:
@@ -38,6 +39,15 @@ async def fetch_and_parse(url: str, timeout: float = 30.0) -> FetchResult:
         return FetchResult(ok=False, status_code=resp.status_code,
                            error=f"server error {resp.status_code}",
                            error_kind="transient", elapsed_ms=_ms(start))
+    if resp.status_code == 429:
+        return FetchResult(
+            ok=False,
+            status_code=429,
+            error="rate limited (429)",
+            error_kind="transient",
+            elapsed_ms=_ms(start),
+            retry_after_seconds=_parse_retry_after(resp.headers.get("Retry-After")),
+        )
     if resp.status_code >= 400:
         return FetchResult(ok=False, status_code=resp.status_code,
                            error=f"client error {resp.status_code}",
@@ -65,3 +75,12 @@ async def fetch_and_parse(url: str, timeout: float = 30.0) -> FetchResult:
 
 def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+def _parse_retry_after(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        return max(int(value), 0)
+    except ValueError:
+        return None

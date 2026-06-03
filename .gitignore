@@ -1,0 +1,47 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments (NEVER commit these)
+.venv/
+venv/
+virtualenv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# ---- Node / Frontend ----
+node_modules/
+dist/
+build/
+.vite/
+.next/
+*.local
+
+# ---- Docker / DB data ----
+postgres_data/
+pgdata/
+*.sqlite3
+*.db
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- OS / IDE ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local-only notes, specs, probes (not pushed to GitHub)
+_local/

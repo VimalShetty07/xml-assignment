@@ -1,36 +1,38 @@
-from fastapi import FastAPI, HTTPException
-import httpx
-import feedparser
+from contextlib import asynccontextmanager
 
-FEED_URL = "https://1password.com/blog/index.xml"
+from arq import create_pool
+from arq.connections import RedisSettings
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+from app.config import REDIS_URL
+from app.logging_config import configure_logging, get_logger
+from app.routes.jobs import router as jobs_router
 
-@app.get("/test")
-def test():
-    return {"working"}
+configure_logging()
 
-@app.get("/test2")
-def test2():
-    try:
-        response = httpx.get(FEED_URL, timeout=30.0, follow_redirects=True)
-        response.raise_for_status()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Fetch failed: {e}")
-    parsed = feedparser.parse(response.content)
-    articles = []
-    for entry in parsed.entries[:5]:
-        articles.append({
-            "title": entry.get("title"),
-            "link": entry.get("link"),
-            "published": entry.get("published", entry.get("updated")),
-            "author": entry.get("author"),
-            "summary": entry.get("summary", entry.get("description")),
-        })
-    return {
-        "feed_url": FEED_URL,
-        "feed_title": parsed.feed.get("title"),
-        "total_entries": len(parsed.entries),
-        "parse_warning": bool(parsed.bozo),
-        "articles": articles,
-    }
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+    yield
+    await app.state.arq_pool.close()
+
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(jobs_router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
