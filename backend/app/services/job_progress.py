@@ -70,6 +70,8 @@ def progress_payload(
         "in_progress": in_progress,
         "pending": pending,
         "records_count": task.records_count,
+        "last_error": task.last_error,
+        "error_kind": task.error_kind,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
 

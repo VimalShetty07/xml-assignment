@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
@@ -40,10 +40,17 @@ export function JobDetailPage() {
     queryKey: ["tasks", jobId],
     queryFn: () => api.listTasks(jobId),
     enabled: Boolean(jobId),
-    staleTime: Infinity,
+    staleTime: 0,
   });
 
   useJobEvents(jobId, eventsEnabled);
+
+  useEffect(() => {
+    if (job && !jobActive) {
+      void tasksQuery.refetch();
+      void jobQuery.refetch();
+    }
+  }, [job?.finished_at, jobActive]);
 
   const visibleTasks = useMemo(
     () => filterTasks(tasksQuery.data?.tasks ?? [], statusFilter),

@@ -42,11 +42,24 @@ function patchTaskList(data: ProgressEvent) {
               ...t,
               status,
               records_count: data.records_count ?? t.records_count,
+              last_error:
+                data.last_error !== undefined ? data.last_error : t.last_error,
+              error_kind:
+                data.error_kind !== undefined ? data.error_kind : t.error_kind,
             }
           : t,
       ),
     };
   };
+}
+
+function needsTaskSync(data: ProgressEvent): boolean {
+  if (data.task_status === "failed" || data.task_status === "completed") {
+    return true;
+  }
+  return (
+    data.job_status === "completed" || data.job_status === "failed"
+  );
 }
 
 export function useJobEvents(jobId: string, enabled: boolean) {
@@ -58,34 +71,42 @@ export function useJobEvents(jobId: string, enabled: boolean) {
 
     const es = new EventSource(eventsUrl(jobId));
 
-    const scheduleSync = (immediate = false) => {
+    const syncTasks = (immediate: boolean) => {
       if (refreshTimer.current) {
         clearTimeout(refreshTimer.current);
         refreshTimer.current = null;
       }
-      const delay = immediate ? 0 : 3000;
-      refreshTimer.current = setTimeout(() => {
-        refreshTimer.current = null;
+      const run = () => {
         queryClient.invalidateQueries({ queryKey: ["tasks", jobId] });
         queryClient.invalidateQueries({ queryKey: ["job", jobId] });
-      }, delay);
+      };
+      if (immediate) {
+        run();
+      } else {
+        refreshTimer.current = setTimeout(run, 800);
+      }
     };
 
     const handle = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data) as ProgressEvent;
         queryClient.setQueryData<JobDetail>(["job", jobId], applyProgress(data));
-        queryClient.setQueryData<TaskListResponse>(
-          ["tasks", jobId],
-          patchTaskList(data),
-        );
 
-        const terminal =
-          data.job_status === "completed" || data.job_status === "failed";
-        if (terminal) {
-          scheduleSync(true);
+        const tasks = queryClient.getQueryData<TaskListResponse>([
+          "tasks",
+          jobId,
+        ]);
+        if (tasks?.tasks?.length && data.task_id) {
+          queryClient.setQueryData<TaskListResponse>(
+            ["tasks", jobId],
+            patchTaskList(data),
+          );
+        }
+
+        if (needsTaskSync(data) || !tasks?.tasks?.length) {
+          syncTasks(true);
         } else if (event.type === "progress") {
-          scheduleSync(false);
+          syncTasks(false);
         }
       } catch {
         /* ignore */
@@ -96,7 +117,7 @@ export function useJobEvents(jobId: string, enabled: boolean) {
     es.addEventListener("progress", handle);
 
     es.onerror = () => {
-      scheduleSync(true);
+      syncTasks(true);
     };
 
     return () => {

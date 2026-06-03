@@ -84,5 +84,7 @@ export interface ProgressEvent {
   task_id?: string;
   task_status?: string;
   records_count?: number;
+  last_error?: string | null;
+  error_kind?: string | null;
   finished_at?: string | null;
 }

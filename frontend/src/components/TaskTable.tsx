@@ -79,11 +79,7 @@ export function TaskTable({ jobId, tasks, sortKey, sortDir, onSort }: Props) {
                 <span className={`badge ${t.status}`}>{t.status}</span>
               </td>
               <td className="url-cell">
-                {t.status === "failed" ? (
-                  <Link to={`/jobs/${jobId}/tasks/${t.id}`}>{t.url}</Link>
-                ) : (
-                  t.url
-                )}
+                <Link to={`/jobs/${jobId}/tasks/${t.id}`}>{t.url}</Link>
               </td>
               <td className="error-cell" title={t.last_error ?? undefined}>
                 {t.last_error ? t.last_error.slice(0, 80) : "—"}
